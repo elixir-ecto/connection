@@ -10,7 +10,6 @@ is used in the place of a timeout or `:hibernate` in a return value.
 ```elixir
 defmodule Example do
 
-  use Behaviour
   @behaviour Connection
 
   def start_link(host, port, opts, timeout \\ 5000) do
@@ -31,7 +30,7 @@ defmodule Example do
   end
 
   def handle_connect(%{sock: nil, host: host, port: port, opts: opts,
-  timeout: timeout} = s ) do
+  timeout: timeout} = s) do
     case :gen_tcp.connect(host, port, [active: false] ++ opts, timeout) do
       {:ok, sock} ->
         {:ok, %{s | sock: sock}, :handshake}
