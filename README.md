@@ -8,15 +8,18 @@ API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
   defcallback init(any) ::
     {:connect, any, any} |
     {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
+    {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
     :ignore | {:stop, any}
 
   defcallback connect(any, any) ::
     {:ok, any} | {:ok, any, timeout | :hibernate} |
+    {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
     {:stop, any, any}
 
   defcallback disconnect(any, any) ::
     {:connect, any, any} |
     {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
+    {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
     {:stop, any, any}
 
   defcallback handle_call(any, {pid, any}, any) ::
@@ -51,6 +54,8 @@ defmodule Example do
     Connection.call(conn, {:recv, bytes, timeout})
   end
 
+  def close(conn), do: Connection.call(conn, :close)
+
   def init({host, port, opts, timeout}) do
     s = %{host: host, port: port, opts: opts, timeout: timeout, sock: nil}
     {:connect, :init, s}
@@ -62,13 +67,21 @@ defmodule Example do
       {:ok, sock} ->
         {:ok, %{s | sock: sock}}
       {:error, _} ->
-        :erlang.send_after(1000, self(), :reconnect)
-        {:ok, s}
+        {:backoff, 1000, s}
     end
   end
 
-  def disconnect(_, %{sock: sock} = s) do
+  def disconnect(info, %{sock: sock} = s) do
     :ok = :gen_tcp.close(sock)
+    case info do
+      {:close, from} ->
+        Connection.reply(from, :ok)
+      {:error, :closed} ->
+        :error_logger.format("Connection closed~n", [])
+      {:error, reason} ->
+        reason = :inet.format_error(reason)
+        :error_logger.format("Connection error: ~s~n", [reason])
+    end
     {:connect, :reconnect, %{s | sock: nil}}
   end
 
@@ -79,8 +92,8 @@ defmodule Example do
     case :gen_tcp.send(sock, data) do
       :ok ->
         {:reply, :ok, s}
-      {:error, reason} = error ->
-        {:disconnect, reason, error, s}
+      {:error, _} = error ->
+        {:disconnect, error, error, s}
     end
   end
   def handle_call({:recv, bytes, timeout}, _, %{sock: sock} = s) do
@@ -89,14 +102,16 @@ defmodule Example do
         {:reply, ok, s}
       {:error, :timeout} = timeout ->
         {:reply, timeout, s}
-      {:error, reason} = error ->
-        {:disconnect, reason, error, s}
+      {:error, _} = error ->
+        {:disconnect, error, error, s}
     end
+  end
+  def handle_call(:close, from, s) do
+    {:disconnect, {:close, from}, s}
   end
 
   def handle_cast(req, s), do: {:stop, {:bad_cast, req}, s}
 
-  def handle_info(:reconnect, %{sock: nil} = s), do: {:connect, :reconnect, s}
   def handle_info(_, s), do: {:noreply, s}
 
   def code_change(_, s, _), do: {:ok, s}
