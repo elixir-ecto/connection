@@ -23,7 +23,7 @@ defmodule Example do
     Connection.call(conn, {:recv, bytes, timeout})
   end
 
-  def reconnect(conn), do: Connection.cast(conn, :reconnect)
+  def disconnect(conn), do: Connection.cast(conn, :disconnect)
 
   def init({host, port, opts, timeout}) do
     s = %{host: host, port: port, opts: opts, timeout: timeout, sock: nil}
@@ -35,8 +35,9 @@ defmodule Example do
     case :gen_tcp.connect(host, port, [active: false] ++ opts, timeout) do
       {:ok, sock} ->
         {:ok, %{s | sock: sock}, :handshake}
-      {:error, reason} ->
-        {:stop, reason, s}
+      {:error, _} ->
+        :erlang.send_after(1000, self(), :reconnect)
+        {:ok, s}
     end
   end
 
@@ -47,6 +48,9 @@ defmodule Example do
     {:ok, %{s | sock: nil}, :connect}
   end
 
+  def handle_call(_, _, %{sock: nil} = s) do
+    {:reply, {:error, :closed}, s}
+  end
   def handle_call({:send, data}, _, %{sock: sock} = s) do
     case :gen_tcp.send(sock, data) do
       :ok ->
@@ -66,8 +70,10 @@ defmodule Example do
     end
   end
 
-  def handle_cast(:reconnect, s), do: {:noreply, s, :disconnect}
+  def handle_cast(:disconnect, %{sock: nil} = s), do: {:noreply, s}
+  def handle_cast(:disconnect, s), do: {:noreply, s, :disconnect}
 
+  def handle_info(:reconnect, %{sock: nil} = s), do: {:noreply, s, :connect}
   def handle_info(_, s), do: {:noreply, s}
 
   def code_change(_, s, _), do: {:ok, s}
