@@ -4,38 +4,28 @@ defmodule Connection do
   @behaviour :gen_server
 
   defcallback init(any) ::
-    {:ok, any} |
-    {:ok, any, timeout | :hibernate | :connect | :handshake | :disconnect} |
+    {:connect, any} |
+    {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     :ignore | {:stop, any}
 
-  defcallback handle_connect(any) ::
-    {:ok, any} |
-    {:ok, any, timeout | :hibernate | :connect | :handshake | :disconnect} |
+  defcallback connect(any) ::
+    {:ok, any} | {:ok, any, timeout | :hibernate} |
     {:stop, any, any}
 
-  defcallback handle_handshake(any) ::
-    {:ok, any} |
-    {:ok, any, timeout | :hibernate | :connect | :handshake | :disconnect} |
-    {:stop, any, any}
-
-  defcallback handle_disconnect(any) ::
-    {:ok, any} |
-    {:ok, any, timeout | :hibernate | :connect | :handshake | :disconnect} |
+  defcallback disconnect(any) ::
+    {:connect, any} |
+    {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     {:stop, any, any}
 
   defcallback handle_call(any, {pid, any}, any) ::
-    {:reply, any, any} |
-    {:reply, any, any,
-      timeout | :hibernate | :connect | :handshake | :disconnect} |
-    {:noreply, any} |
-    {:noreply, any,
-      timeout | :hibernate | :connect | :handshake | :disconnect} |
+    {:reply, any, any} | {:reply, any, any, timeout | :hibernate} |
+    {:noreply, any} | {:noreply, any, timeout | :hibernate} |
+    {:disconnect | :connect, any} | {:disconnect | :connect, any, any} |
     {:stop, any, any} | {:stop, any, any, any}
 
   defcallback handle_info(any, any) ::
-    {:noreply, any} |
-    {:noreply, any,
-      timeout | :hibernate | :connect | :handshake | :disconnect} |
+    {:noreply, any} | {:noreply, any, timeout | :hibernate} |
+    {:disconnect | :connect, any} |
     {:stop, any, any}
 
   defcallback code_change(any, any, any) :: {:ok, any}
@@ -74,10 +64,13 @@ defmodule Connection do
         reason = {{:nocatch, value}, System.stacktrace()}
         init_stop(starter, name, reason)
     else
-      {:ok, mod_state} ->
+      {:connect, mod_state} ->
+        :proc_lib.init_ack(starter, {:ok, self()})
+        enter_connect(mod, mod_state, name, opts)
+      {:noconnect, mod_state} ->
         :proc_lib.init_ack(starter, {:ok, self()})
         enter_loop(mod, mod_state, name, opts, :infinity)
-      {:ok, mod_state, info} ->
+      {:noconnect, mod_state, info} ->
         :proc_lib.init_ack(starter, {:ok, self()})
         enter_loop(mod, mod_state, name, opts, info)
       :ignore ->
@@ -90,7 +83,6 @@ defmodule Connection do
         init_stop(starter, name, {:bad_return_value, other})
     end
   end
-
   ## :proc_lib callback
 
   @doc false
@@ -98,20 +90,13 @@ defmodule Connection do
     args = [mod, mod_state, name, opts, :infinity]
     :proc_lib.hibernate(__MODULE__, :enter_loop, args)
   end
-  def enter_loop(mod, mod_state, name, opts, :connect) do
-    enter_callback(mod, :handle_connect, mod_state, name, opts)
-  end
-  def enter_loop(mod, mod_state, name, opts, :handshake) do
-    enter_callback(mod, :handle_handshake, mod_state, name, opts)
-  end
-  def enter_loop(mod, mod_state, name, opts, :disconnect) do
-    enter_callback(mod, :handle_disconnect, mod_state, name, opts)
-  end
-  def enter_loop(mod, mod_state, name, opts, timeout) when name === self() do
+  def enter_loop(mod, mod_state, name, opts, timeout)
+  when name === self() do
     :gen_server.enter_loop(__MODULE__, opts, {mod, mod_state}, timeout)
   end
   def enter_loop(mod, mod_state, name, opts, timeout) do
-    :gen_server.enter_loop(__MODULE__, opts, {mod, mod_state}, name, timeout)
+    :gen_server.enter_loop(__MODULE__, opts, {mod, mod_state}, name,
+    timeout)
   end
 
   @doc false
@@ -127,16 +112,24 @@ defmodule Connection do
       :throw, value ->
         :erlang.raise(:error, {:nocatch, value}, System.stacktrace())
     else
-      {:noreply, mod_state} ->
-        loop(mod, mod_state, :infinity)
-      {:noreply, mod_state, info} ->
-        loop(mod, mod_state, info)
-      {:reply, reply, mod_state} ->
-        :gen_server.reply(from, reply)
-        loop(mod, mod_state, :infinity)
-      {:reply, reply, mod_state, info} ->
-        :gen_server.reply(from, reply)
-        loop(mod, mod_state, info)
+      {:noreply, mod_state} = noreply ->
+        put_elem(noreply, 1, {mod, mod_state})
+      {:noreply, mod_state, _} = noreply ->
+        put_elem(noreply, 1, {mod, mod_state})
+      {:reply, _, mod_state} = reply ->
+        put_elem(reply, 2, {mod, mod_state})
+      {:reply, _, mod_state, _} = reply ->
+        put_elem(reply, 2, {mod, mod_state})
+      {:connect, mod_state} ->
+        connect(mod, mod_state)
+      {:connect, reply, mod_state} ->
+        reply(from, reply)
+        connect(mod, mod_state)
+      {:disconnect, mod_state} ->
+        disconnect(mod, mod_state)
+      {:disconnect, reply, mod_state} ->
+        reply(from, reply)
+        disconnect(mod, mod_state)
       {:stop, _, mod_state} = stop ->
         put_elem(stop, 2, {mod, mod_state})
       {:stop, _, _, mod_state} = stop ->
@@ -240,11 +233,9 @@ defmodule Connection do
   defp unregister({:global, name}), do: :global.unregister_name(name)
   defp unregister({:via, mod, name}), do: apply(mod, :unregister_name, [name])
 
-  ## enter_loop helpers
-
-  defp enter_callback(mod, fun, mod_state, name, opts) do
+  defp enter_connect(mod, mod_state, name, opts) do
     try do
-      apply(mod, fun, [mod_state])
+      apply(mod, :connect, [mod_state])
     catch
       :exit, reason ->
         report_reason = {reason, System.stacktrace()}
@@ -318,20 +309,7 @@ defmodule Connection do
 
   ## GenServer helpers
 
-  defp loop(mod, mod_state, :connect) do
-    callback(mod, mod_state, :handle_connect)
-  end
-  defp loop(mod, mod_state, :handshake) do
-    callback(mod, mod_state, :handle_handshake)
-  end
-  defp loop(mod, mod_state, :disconnect) do
-    callback(mod, mod_state, :handle_disconnect)
-  end
-  defp loop(mod, mod_state, timeout) do
-    {:noreply, {mod, mod_state}, timeout}
-  end
-
-  defp callback(mod, mod_state, fun) do
+  defp callback(mod, fun, mod_state) do
     # In order to have new mod_state in terminate/2 must return the exit reason.
     # However to get the correct GenServer report (exit with stacktrace),
     # include stacktrace in state and re-raise after calling mod.terminate/2 if
@@ -349,11 +327,30 @@ defmodule Connection do
         reason = {:nocatch, value}
         reason2 = {reason, System.stacktrace()}
         {:stop, reason2, {:error, mod, mod_state, reason, System.stacktrace()}}
-    else
+    end
+  end
+
+  defp connect(mod, mod_state) do
+    case callback(mod, :connect, mod_state) do
       {:ok, mod_state} ->
-        loop(mod, mod_state, :infinity)
+        {:noreply, {mod, mod_state}}
       {:ok, mod_state, info} ->
-        loop(mod, mod_state, info)
+        {:noreply, {mod, mod_state}, info}
+      {:stop, _, mod_state} = stop ->
+        put_elem(stop, 2, {mod, mod_state})
+      other ->
+        {:stop, {:bad_return_value, other}, {mod, mod_state}}
+    end
+  end
+
+  defp disconnect(mod, mod_state) do
+    case callback(mod, :disconnect, mod_state) do
+      {:connect, mod_state} ->
+        connect(mod, mod_state)
+      {:noconnect, mod_state} ->
+        {:noreply, {mod, mod_state}}
+      {:noconnect, mod_state, info} ->
+        {:noreply, {mod, mod_state}, info}
       {:stop, _, mod_state} = stop ->
         put_elem(stop, 2, {mod, mod_state})
       other ->
@@ -368,10 +365,14 @@ defmodule Connection do
       :throw, value ->
         :erlang.raise(:error, {:nocatch, value}, System.stacktrace())
     else
-      {:noreply, mod_state} ->
-        loop(mod, mod_state, :infinity)
-      {:noreply, mod_state, info} ->
-        loop(mod, mod_state, info)
+      {:noreply, mod_state} = noreply ->
+        put_elem(noreply, 1, {mod, mod_state})
+      {:noreply, mod_state, _} = noreply ->
+        put_elem(noreply, 1, {mod, mod_state})
+      {:connect, mod_state} ->
+        connect(mod, mod_state)
+      {:disconnect, mod_state} ->
+        disconnect(mod, mod_state)
       {:stop, _, mod_state} = stop ->
         put_elem(stop, 2, {mod, mod_state})
       other ->
