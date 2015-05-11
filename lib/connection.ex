@@ -4,28 +4,29 @@ defmodule Connection do
   @behaviour :gen_server
 
   defcallback init(any) ::
-    {:connect, any} |
+    {:connect, any, any} |
     {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     :ignore | {:stop, any}
 
-  defcallback connect(any) ::
+  defcallback connect(any, any) ::
     {:ok, any} | {:ok, any, timeout | :hibernate} |
     {:stop, any, any}
 
-  defcallback disconnect(any) ::
-    {:connect, any} |
+  defcallback disconnect(any, any) ::
+    {:connect, any, any} |
     {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     {:stop, any, any}
 
   defcallback handle_call(any, {pid, any}, any) ::
     {:reply, any, any} | {:reply, any, any, timeout | :hibernate} |
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
-    {:disconnect | :connect, any} | {:disconnect | :connect, any, any} |
+    {:disconnect | :connect, any, any} |
+    {:disconnect | :connect, any, any, any} |
     {:stop, any, any} | {:stop, any, any, any}
 
   defcallback handle_info(any, any) ::
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
-    {:disconnect | :connect, any} |
+    {:disconnect | :connect, any, any} |
     {:stop, any, any}
 
   defcallback code_change(any, any, any) :: {:ok, any}
@@ -64,15 +65,15 @@ defmodule Connection do
         reason = {{:nocatch, value}, System.stacktrace()}
         init_stop(starter, name, reason)
     else
-      {:connect, mod_state} ->
+      {:connect, info, mod_state} ->
         :proc_lib.init_ack(starter, {:ok, self()})
-        enter_connect(mod, mod_state, name, opts)
+        enter_connect(mod, info, mod_state, name, opts)
       {:noconnect, mod_state} ->
         :proc_lib.init_ack(starter, {:ok, self()})
         enter_loop(mod, mod_state, name, opts, :infinity)
-      {:noconnect, mod_state, info} ->
+      {:noconnect, mod_state, timeout} ->
         :proc_lib.init_ack(starter, {:ok, self()})
-        enter_loop(mod, mod_state, name, opts, info)
+        enter_loop(mod, mod_state, name, opts, timeout)
       :ignore ->
         _ = unregister(name)
         :proc_lib.init_ack(starter, :ignore)
@@ -120,16 +121,16 @@ defmodule Connection do
         put_elem(reply, 2, {mod, mod_state})
       {:reply, _, mod_state, _} = reply ->
         put_elem(reply, 2, {mod, mod_state})
-      {:connect, mod_state} ->
-        connect(mod, mod_state)
-      {:connect, reply, mod_state} ->
+      {:connect, info, mod_state} ->
+        connect(mod, info, mod_state)
+      {:connect, info, reply, mod_state} ->
         reply(from, reply)
-        connect(mod, mod_state)
-      {:disconnect, mod_state} ->
-        disconnect(mod, mod_state)
-      {:disconnect, reply, mod_state} ->
+        connect(mod, info, mod_state)
+      {:disconnect, info, mod_state} ->
+        disconnect(mod, info, mod_state)
+      {:disconnect, info, reply, mod_state} ->
         reply(from, reply)
-        disconnect(mod, mod_state)
+        disconnect(mod, info, mod_state)
       {:stop, _, mod_state} = stop ->
         put_elem(stop, 2, {mod, mod_state})
       {:stop, _, _, mod_state} = stop ->
@@ -233,9 +234,9 @@ defmodule Connection do
   defp unregister({:global, name}), do: :global.unregister_name(name)
   defp unregister({:via, mod, name}), do: apply(mod, :unregister_name, [name])
 
-  defp enter_connect(mod, mod_state, name, opts) do
+  defp enter_connect(mod, info, mod_state, name, opts) do
     try do
-      apply(mod, :connect, [mod_state])
+      apply(mod, :connect, [info, mod_state])
     catch
       :exit, reason ->
         report_reason = {reason, System.stacktrace()}
@@ -249,8 +250,8 @@ defmodule Connection do
     else
       {:ok, mod_state} ->
         enter_loop(mod, mod_state, name, opts, :infinity)
-      {:ok, mod_state, info} ->
-        enter_loop(mod, mod_state, name, opts, info)
+      {:ok, mod_state, timeout} ->
+        enter_loop(mod, mod_state, name, opts, timeout)
       {:stop, reason, mod_state} ->
         enter_terminate(mod, mod_state, name, reason, reason)
       other ->
@@ -309,14 +310,14 @@ defmodule Connection do
 
   ## GenServer helpers
 
-  defp callback(mod, fun, mod_state) do
+  defp callback(mod, fun, info, mod_state) do
     # In order to have new mod_state in terminate/2 must return the exit reason.
     # However to get the correct GenServer report (exit with stacktrace),
     # include stacktrace in state and re-raise after calling mod.terminate/2 if
     # it does not raise. The raise state is formatted in format_status/2 to look
     # like the normal state.
     try do
-      apply(mod, fun, [mod_state])
+      apply(mod, fun, [info, mod_state])
     catch
       :exit, reason ->
         {:stop, reason, {:exit, mod, mod_state, reason, System.stacktrace()}}
@@ -330,12 +331,12 @@ defmodule Connection do
     end
   end
 
-  defp connect(mod, mod_state) do
-    case callback(mod, :connect, mod_state) do
+  defp connect(mod, info, mod_state) do
+    case callback(mod, :connect, info, mod_state) do
       {:ok, mod_state} ->
         {:noreply, {mod, mod_state}}
-      {:ok, mod_state, info} ->
-        {:noreply, {mod, mod_state}, info}
+      {:ok, mod_state, timeout} ->
+        {:noreply, {mod, mod_state}, timeout}
       {:stop, _, mod_state} = stop ->
         put_elem(stop, 2, {mod, mod_state})
       other ->
@@ -343,14 +344,14 @@ defmodule Connection do
     end
   end
 
-  defp disconnect(mod, mod_state) do
-    case callback(mod, :disconnect, mod_state) do
-      {:connect, mod_state} ->
-        connect(mod, mod_state)
+  defp disconnect(mod, info, mod_state) do
+    case callback(mod, :disconnect, info, mod_state) do
+      {:connect, info, mod_state} ->
+        connect(mod, info, mod_state)
       {:noconnect, mod_state} ->
         {:noreply, {mod, mod_state}}
-      {:noconnect, mod_state, info} ->
-        {:noreply, {mod, mod_state}, info}
+      {:noconnect, mod_state, timeout} ->
+        {:noreply, {mod, mod_state}, timeout}
       {:stop, _, mod_state} = stop ->
         put_elem(stop, 2, {mod, mod_state})
       other ->
@@ -369,10 +370,10 @@ defmodule Connection do
         put_elem(noreply, 1, {mod, mod_state})
       {:noreply, mod_state, _} = noreply ->
         put_elem(noreply, 1, {mod, mod_state})
-      {:connect, mod_state} ->
-        connect(mod, mod_state)
-      {:disconnect, mod_state} ->
-        disconnect(mod, mod_state)
+      {:connect, info, mod_state} ->
+        connect(mod, info, mod_state)
+      {:disconnect, info, mod_state} ->
+        disconnect(mod, info, mod_state)
       {:stop, _, mod_state} = stop ->
         put_elem(stop, 2, {mod, mod_state})
       other ->

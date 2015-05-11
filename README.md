@@ -2,32 +2,33 @@ Connection
 ==========
 
 Prototype of `Connection` behaviour. The API is similar to the GenServer
-API. There are 2 additional callbacks `connect/1` and `disconnect/1`:
+API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
 
 ```elixir
   defcallback init(any) ::
-    {:connect, any} |
+    {:connect, any, any} |
     {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     :ignore | {:stop, any}
 
-  defcallback connect(any) ::
+  defcallback connect(any, any) ::
     {:ok, any} | {:ok, any, timeout | :hibernate} |
     {:stop, any, any}
 
-  defcallback disconnect(any) ::
-    {:connect, any} |
+  defcallback disconnect(any, any) ::
+    {:connect, any, any} |
     {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     {:stop, any, any}
 
   defcallback handle_call(any, {pid, any}, any) ::
     {:reply, any, any} | {:reply, any, any, timeout | :hibernate} |
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
-    {:disconnect | :connect, any} | {:disconnect | :connect, any, any} |
+    {:disconnect | :connect, any, any} |
+    {:disconnect | :connect, any, any, any} |
     {:stop, any, any} | {:stop, any, any, any}
 
   defcallback handle_info(any, any) ::
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
-    {:disconnect | :connect, any} |
+    {:disconnect | :connect, any, any} |
     {:stop, any, any}
 
   defcallback code_change(any, any, any) :: {:ok, any}
@@ -52,10 +53,10 @@ defmodule Example do
 
   def init({host, port, opts, timeout}) do
     s = %{host: host, port: port, opts: opts, timeout: timeout, sock: nil}
-    {:connect, s}
+    {:connect, :init, s}
   end
 
-  def connect(%{sock: nil, host: host, port: port, opts: opts,
+  def connect(_, %{sock: nil, host: host, port: port, opts: opts,
   timeout: timeout} = s) do
     case :gen_tcp.connect(host, port, [active: false] ++ opts, timeout) do
       {:ok, sock} ->
@@ -66,9 +67,9 @@ defmodule Example do
     end
   end
 
-  def disconnect(%{sock: sock} = s) do
+  def disconnect(_, %{sock: sock} = s) do
     :ok = :gen_tcp.close(sock)
-    {:connect, %{s | sock: nil}}
+    {:connect, :reconnect, %{s | sock: nil}}
   end
 
   def handle_call(_, _, %{sock: nil} = s) do
@@ -78,8 +79,8 @@ defmodule Example do
     case :gen_tcp.send(sock, data) do
       :ok ->
         {:reply, :ok, s}
-      {:error, _} = error ->
-        {:reply, error, s}
+      {:error, reason} = error ->
+        {:disconnect, reason, error, s}
     end
   end
   def handle_call({:recv, bytes, timeout}, _, %{sock: sock} = s) do
@@ -88,14 +89,14 @@ defmodule Example do
         {:reply, ok, s}
       {:error, :timeout} = timeout ->
         {:reply, timeout, s}
-      {:error, _} = error ->
-        {:disconnect, error, s}
+      {:error, reason} = error ->
+        {:disconnect, reason, error, s}
     end
   end
 
   def handle_cast(req, s), do: {:stop, {:bad_cast, req}, s}
 
-  def handle_info(:reconnect, %{sock: nil} = s), do: {:connect, s}
+  def handle_info(:reconnect, %{sock: nil} = s), do: {:connect, :reconnect, s}
   def handle_info(_, s), do: {:noreply, s}
 
   def code_change(_, s, _), do: {:ok, s}
