@@ -242,7 +242,7 @@ defmodule Connection do
 
   defp init_stop(starter, name, reason) do
     _ = unregister(name)
-    :proc_lib.init_ack(starter, reason)
+    :proc_lib.init_ack(starter, {:error, reason})
     exit(reason)
   end
 
