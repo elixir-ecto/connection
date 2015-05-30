@@ -129,7 +129,7 @@ defmodule Connection do
 
   Returning `{:backoff, timeout, state, timeout2}` is similar to
   `{:backoff, timeout, state}` except `handle_info(:timeout, state)` will be
-  called after `timeout2` if no message arrives or the backoff is triggered.
+  called after `timeout2` if no message arrives.
 
   Returning `{:backoff, timeout, state, :hibernate}` is similar to
   `{:backoff, timeout, state}` except the process hibernates.
@@ -676,7 +676,7 @@ defmodule Connection do
 
   defp report_reason({:undef, [{mod, fun, args, _} | _] = stack} = reason) do
     cond do
-      :code.is_loaded(mod) !== false ->
+      :code.is_loaded(mod) === false ->
         {:"module could not be loaded", stack}
       not function_exported?(mod, fun, length(args)) ->
         {:"function not exported", stack}
