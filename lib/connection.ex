@@ -362,33 +362,15 @@ defmodule Connection do
 
   ## GenServer helpers
 
-  defp callback(fun, info, mod_state, %{mod: mod} = s) do
-    # In order to have new mod_state in terminate/2 must return the exit reason.
-    # However to get the correct GenServer report (exit with stacktrace),
-    # include stacktrace in state and re-raise after calling mod.terminate/2 if
-    # it does not raise. The raise state is formatted in format_status/2 to look
-    # like the normal state.
-    try do
-      apply(mod, fun, [info, mod_state])
-    catch
-      :exit, reason ->
-        stack = System.stacktrace()
-        {:stop, reason, {:exit, %{s | mod_state: mod_state}, reason, stack}}
-      :error, reason ->
-        stack = System.stacktrace()
-        reason2 = {reason, stack}
-        {:stop, reason2, {:error, %{s | mod_state: mod_state}, reason, stack}}
-      :throw, value ->
-        reason = {:nocatch, value}
-        stack = System.stacktrace()
-        reason2 = {reason, stack}
-        {:stop, reason2, {:error, %{s | mod_state: mod_state}, reason, stack}}
-    end
-  end
-
-  defp connect(info, mod_state, s) do
+  defp connect(info, mod_state, %{mod: mod} = s) do
     s = cancel_backoff(s)
-    case callback(:connect, info, mod_state, s) do
+    try do
+      apply(mod, :connect, [info, mod_state])
+    catch
+      class, reason ->
+        stack = System.stacktrace()
+        callback_stop(class, reason, stack, %{s | mod_state: mod_state})
+    else
       {:ok, mod_state} ->
         {:noreply, %{s | mod_state: mod_state}}
       {:ok, mod_state, timeout} ->
@@ -406,9 +388,15 @@ defmodule Connection do
     end
   end
 
-  defp disconnect(info, mod_state, s) do
+  defp disconnect(info, mod_state, %{mod: mod} = s) do
     s = cancel_backoff(s)
-    case callback(:disconnect, info, mod_state, s) do
+    try do
+      apply(mod, :disconnect, [info, mod_state])
+    catch
+      class, reason ->
+        stack = System.stacktrace()
+        callback_stop(class, reason, stack, %{s | mod_state: mod_state})
+    else
       {:connect, info, mod_state} ->
         connect(info, mod_state, s)
       {:noconnect, mod_state} ->
@@ -426,6 +414,24 @@ defmodule Connection do
       other ->
         {:stop, {:bad_return_value, other}, %{s | mod_state: mod_state}}
     end
+  end
+
+    # In order to have new mod_state in terminate/2 must return the exit reason.
+    # However to get the correct GenServer report (exit with stacktrace),
+    # include stacktrace in state and re-raise after calling mod.terminate/2 if
+    # it does not raise. The raise state is formatted in format_status/2 to look
+    # like the normal state.
+  defp callback_stop(:error, reason, stack, s) do
+    stop_reason = {reason, stack}
+    {:stop, stop_reason, {:error, s, reason, stack}}
+  end
+  defp callback_stop(:exit, reason, stack, s) do
+    {:stop, reason, {:exit, s, reason, stack}}
+  end
+  defp callback_stop(:throw, value, stack, s) do
+    reason = {:nocatch, value}
+    stop_reason = {reason, stack}
+    {:stop, stop_reason, {:error, s, reason, stack}}
   end
 
   defp handle_async(fun, msg, %{mod: mod, mod_state: mod_state} = s) do
