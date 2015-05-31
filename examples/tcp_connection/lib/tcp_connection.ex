@@ -1,6 +1,6 @@
 defmodule TCPConnection do
 
-  @behaviour Connection
+  use Connection
 
   def start_link(host, port, opts, timeout \\ 5000) do
     Connection.start_link(__MODULE__, {host, port, opts, timeout})
@@ -67,12 +67,4 @@ defmodule TCPConnection do
   def handle_call(:close, from, s) do
     {:disconnect, {:close, from}, s}
   end
-
-  def handle_cast(req, s), do: {:stop, {:bad_cast, req}, s}
-
-  def handle_info(_, s), do: {:noreply, s}
-
-  def code_change(_, s, _), do: {:ok, s}
-
-  def terminate(_, s), do: IO.inspect(s)
 end

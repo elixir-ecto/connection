@@ -10,7 +10,7 @@ defmodule Connection do
 
       defmodule TCPConnection do
 
-        @behaviour Connection
+        use Connection
 
         def start_link(host, port, opts, timeout \\\\ 5000) do
           Connection.start_link(__MODULE__, {host, port, opts, timeout})
@@ -78,14 +78,6 @@ defmodule Connection do
         def handle_call(:close, from, s) do
           {:disconnect, {:close, from}, s}
         end
-
-        def handle_cast(req, _), do: exit({:bad_cast, req})
-
-        def handle_info(_, s), do: {:noreply, s}
-
-        def code_change(_, s, _), do: {:ok, s}
-
-        def terminate(_, _), do: :ok
       end
 
   The example above follows a common pattern. Try to connect immediately, if
