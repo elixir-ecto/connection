@@ -1,0 +1,12 @@
+language: elixir
+elixir:
+      - 1.0.2
+      - 1.0.4
+otp_release:
+      - 17.4
+sudo: false
+env:
+      - ELIXIR_ERL_OPTIONS=""
+      - ELIXIR_ERL_OPTIONS="+T 9"
+script:
+      - mix test
