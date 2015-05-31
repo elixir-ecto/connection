@@ -1,13 +1,13 @@
 Connection
 ==========
 
-Prototype of `Connection` behaviour. The API is similar to the GenServer
+Prototype of `Connection` behaviour. The API is superset of the GenServer
 API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
 
 ```elixir
   defcallback init(any) ::
+    {:ok, any} | {:ok, any, timeout | :hibernate} |
     {:connect, any, any} |
-    {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
     :ignore | {:stop, any}
 
@@ -18,8 +18,8 @@ API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
 
   defcallback disconnect(any, any) ::
     {:connect, any, any} |
-    {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
+    {:noconnect, any} | {:noconnect, any, timeout | :hibernate}
     {:stop, any, any}
 
   defcallback handle_call(any, {pid, any}, any) ::

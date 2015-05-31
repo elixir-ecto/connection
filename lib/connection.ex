@@ -2,8 +2,8 @@ defmodule Connection do
   @moduledoc """
   A behaviour module for implementing connecton processes.
 
-  The `Connection` behaviour is a slightly modified version of a `GenServer`.
-  The additional return values and callbacks are designed to aid building a
+  The `Connection` behaviour is a superset of the `GenServer` behaviour. The
+  additional return values and callbacks are designed to aid building a
   connection process that can handle a peer being (temporarily) unavailable.
 
   An example `Connection` process:
@@ -97,6 +97,20 @@ defmodule Connection do
   Called when the connection process is first started. `start_link/3` will block
   until it returns.
 
+  Returning `{:ok, state}` will cause `start_link/3` to return
+  `{:ok, pid}` and the process to enter its loop with state `state` without
+  calling `connect/2`.
+
+  This return value is useful when the process connects inside `init/1` so that
+  `start_link/3` blocks until a connection is established.
+
+  Returning `{:ok, state, timeout}` is similar to `{:ok, state}`
+  except `handle_info(:timeout, state)` will be called after `timeout` if no
+  message arrives.
+
+  Returning `{:ok, state, :hibernate}` is similar to
+  `{:ok, state}` except the process is hibernated awaiting a message.
+
   Returning `{:connect, info, state}` will cause `start_link/3` to return
   `{:ok, pid}` and `connect(info, state)` will be called immediately - even if
   messages are in the processes message queue. `state` contains the state of the
@@ -107,9 +121,6 @@ defmodule Connection do
   block the parent process and a connection attempt is guaranteed to occur
   before any messages are handled, which is not possible when using a
   `GenServer`.
-
-  Returning `{:noconnect, state}` will cause `start_link/3` to return
-  `{:ok, pid}` and the process to enter its normal loop with state `state`.
 
   Returning `{:backoff, timeout, state}` will cause `start_link/3` to return
   `{:ok, pid}` and the process to enter its normal loop with state `state`.
@@ -126,13 +137,6 @@ defmodule Connection do
   Returning `{:backoff, timeout, state, :hibernate}` is similar to
   `{:backoff, timeout, state}` except the process hibernates.
 
-  Returning `{:noconnect, state, timeout}` is similar to `{:noconnect, state}`
-  except `handle_info(:timeout, state)` will be called after `timeout` if no
-  message arrives.
-
-  Returning `{:noconnect, state, :hibernate}` is similar to
-  `{:noconnect, state}` except the process is hibernated awaiting a message.
-
   Returning `:ignore` will cause `start_link/3` to return `:ignore` and the
   process will exit normally without entering the loop or calling
   `terminate/2`.
@@ -142,9 +146,9 @@ defmodule Connection do
   entering the loop or calling `terminate/2`.
   """
   defcallback init(any) ::
+    {:ok, any} | {:ok, any, timeout | :hibernate} |
     {:connect, any, any} |
     {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
-    {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
     :ignore | {:stop, any}
 
 
@@ -293,7 +297,7 @@ defmodule Connection do
 
       @doc false
       def init(args) do
-        {:noconnect, args}
+        {:ok, args}
       end
 
       @doc false
@@ -416,15 +420,15 @@ defmodule Connection do
         reason = {{:nocatch, value}, System.stacktrace()}
         init_stop(starter, name, reason)
     else
+      {:ok, mod_state} ->
+        :proc_lib.init_ack(starter, {:ok, self()})
+        enter_loop(mod, nil, mod_state, name, opts, :infinity)
+      {:ok, mod_state, timeout} ->
+        :proc_lib.init_ack(starter, {:ok, self()})
+        enter_loop(mod, nil, mod_state, name, opts, timeout)
       {:connect, info, mod_state} ->
         :proc_lib.init_ack(starter, {:ok, self()})
         enter_connect(mod, info, mod_state, name, opts)
-      {:noconnect, mod_state} ->
-        :proc_lib.init_ack(starter, {:ok, self()})
-        enter_loop(mod, nil, mod_state, name, opts, :infinity)
-      {:noconnect, mod_state, timeout} ->
-        :proc_lib.init_ack(starter, {:ok, self()})
-        enter_loop(mod, nil, mod_state, name, opts, timeout)
       {:backoff, backoff_timeout, mod_state} ->
         backoff = start_backoff(backoff_timeout)
         :proc_lib.init_ack(starter, {:ok, self()})
