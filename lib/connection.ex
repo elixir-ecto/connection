@@ -291,6 +291,68 @@ defmodule Connection do
   """
   defcallback terminate(any, any) :: any
 
+  defmacro __using__(_) do
+    quote location: :keep do
+      @behaviour Connection
+
+      # The default implementations of init/1, handle_call/3, handle_info/2,
+      # handle_cast/2, terminate/2 and code_change/3 have been taken verbatim
+      # from Elixir's GenServer default implementation.
+
+      @doc false
+      def init(args) do
+        {:noconnect, args}
+      end
+
+      @doc false
+      def handle_call(msg, _from, state) do
+        # We do this to trick dialyzer to not complain about non-local returns.
+        case :random.uniform(1) do
+          1 -> exit({:bad_call, msg})
+          2 -> {:noreply, state}
+        end
+      end
+
+      @doc false
+      def handle_info(_msg, state) do
+        {:noreply, state}
+      end
+
+      @doc false
+      def handle_cast(msg, state) do
+        # We do this to trick dialyzer to not complain about non-local returns.
+        case :random.uniform(1) do
+          1 -> exit({:bad_cast, msg})
+          2 -> {:noreply, state}
+        end
+      end
+
+      @doc false
+      def terminate(_reason, _state) do
+        :ok
+      end
+
+      @doc false
+      def code_change(_old, state, _extra) do
+        {:ok, state}
+      end
+
+      @doc false
+      def connect(info, _state) do
+        exit({:bad_connect, info})
+      end
+
+      @doc false
+      def disconnect(info, _state) do
+        exit({:bad_disconnect, info})
+      end
+
+      defoverridable [init: 1, handle_call: 3, handle_info: 2,
+                      handle_cast: 2, terminate: 2, code_change: 3,
+                      connect: 2, disconnect: 2]
+    end
+  end
+
   @doc """
   Starts a `Connection` process linked to the current process.
 
