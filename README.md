@@ -1,8 +1,8 @@
 Connection
 ==========
 
-Prototype of `Connection` behaviour. The API is superset of the GenServer
-API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
+`Connection` behaviour for connection processes. The API is superset of the
+GenServer API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
 
 ```elixir
   defcallback init(any) ::
