@@ -1,6 +1,8 @@
 defmodule ConnectionTest do
   use ExUnit.Case
 
+  import ExUnit.CaptureIO
+
   test "init {:ok, state}" do
     fun = fn() -> {:ok, 1} end
     assert {:ok, pid} = Connection.start_link(EvalConn, fun)
@@ -31,19 +33,6 @@ defmodule ConnectionTest do
     assert Process.info(pid, :current_function) ===
       {:current_function, {:erlang, :hibernate, 3}}
     assert Connection.call(pid, :state) === 1
-  end
-
-  test "init {:connect, info, state}" do
-    parent = self()
-    fun = fn() ->
-      connect = fn(n) ->
-        send(parent, {:connect, n})
-        {:ok, n+1}
-      end
-      {:connect, connect, 1}
-    end
-    {:ok, _} = Connection.start_link(EvalConn, fun)
-    assert_receive {:connect, 1}
   end
 
   test "init {:backoff, timeout, state}" do
@@ -138,6 +127,338 @@ defmodule ConnectionTest do
         {:error, {{:nocatch, :oops}, stack}}
     assert :global.whereis_name({EvalConn, :throw}) === :undefined
     assert_receive {:EXIT, _, {{:nocatch, :oops}, ^stack}}
+  end
+
+  test "connect {:ok, state}" do
+    parent = self()
+    fun = fn() ->
+      connect = fn(n) ->
+        send(parent, {:connect, n})
+        {:ok, n+1}
+      end
+      {:connect, connect, 1}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert Connection.call(pid, :state) === 2
+
+    fun = fn() ->
+      connect = fn() ->
+        send(parent, {:connect, 1})
+        {:ok, 2}
+      end
+      {:backoff, 0, connect}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert Connection.call(pid, :state) === 2
+  end
+
+  test "connect {:ok, state, timeout}" do
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      timeout = fn() ->
+        send(parent, {:timeout, n+1})
+        {:noreply, n+2}
+      end
+      {:ok, timeout, 0}
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:timeout, 2}
+    assert Connection.call(pid, :state) === 3
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      timeout = fn() ->
+        send(parent, {:timeout, 2})
+        {:noreply, 3}
+      end
+      {:ok, timeout, 0}
+    end
+    fun = fn() ->
+      {:backoff, 0, connect}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:timeout, 2}
+    assert Connection.call(pid, :state) === 3
+  end
+
+  test "connect {:ok, state, :hibernate}" do
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      {:ok, n+1, :hibernate}
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    :timer.sleep(100)
+    assert Process.info(pid, :current_function) ===
+      {:current_function, {:erlang, :hibernate, 3}}
+    assert Connection.call(pid, :state) === 2
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      {:ok, 2, :hibernate}
+    end
+    fun = fn() ->
+      {:backoff, 0 ,  connect}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    :timer.sleep(100)
+    assert Process.info(pid, :current_function) ===
+      {:current_function, {:erlang, :hibernate, 3}}
+    assert Connection.call(pid, :state) === 2
+  end
+
+  test "connect {:stop, {:shutdown, _}, state}" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      {:stop, {:shutdown, terminate}, n+1}
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 2}
+      assert_receive {:EXIT, ^pid, {:shutdown, _}}
+      Logger.flush()
+    end) == ""
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      {:stop, {:shutdown, terminate}, 2}
+    end
+    fun = fn() ->
+      {:backoff, 0, connect}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 2}
+      assert_receive {:EXIT, ^pid, {:shutdown, _}}
+      Logger.flush()
+    end) == ""
+  end
+
+  test "connect exit({:shutdown, _})" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      exit({:shutdown, terminate})
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 1}
+      assert_receive {:EXIT, ^pid, {:shutdown, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: 1.*shutdown: "sm
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      exit({:shutdown, terminate})
+    end
+    fun = fn() ->
+      {:backoff, 0, connect}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, ^connect}
+      assert_receive {:EXIT, ^pid, {:shutdown, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: #Function.*shutdown: "sm
+  end
+
+  test "connect {:stop, {:abnormal, _}, state}" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      {:stop, {:abnormal, terminate}, n+1}
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 2}
+      assert_receive {:EXIT, ^pid, {:abnormal, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: 2.*{:abnormal,"sm
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      {:stop, {:abnormal, terminate}, 2}
+    end
+    fun = fn() ->
+      {:backoff, 0, connect}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 2}
+      assert_receive {:EXIT, ^pid, {:abnormal, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: 2.*{:abnormal,"sm
+  end
+
+  test "connect -> exit({:abnormal, _})" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      exit({:abnormal, terminate})
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 1}
+      assert_receive {:EXIT, ^pid, {:abnormal, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: 1.*{:abnormal,"sm
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      exit({:abnormal, terminate})
+    end
+    fun = fn() ->
+      {:backoff, 0, connect}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, ^connect}
+      assert_receive {:EXIT, ^pid, {:abnormal, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: #Function.*{:abnormal,"sm
+  end
+
+  test "connect -> throw({:abnormal, _})" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      throw({:abnormal, terminate})
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 1}
+      assert_receive {:EXIT, ^pid, {{:nocatch, {:abnormal, _}}, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: 1.*{:nocatch, {:abnormal,"sm
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      throw({:abnormal, terminate})
+    end
+    fun = fn() ->
+      {:backoff, 0, connect}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, ^connect}
+      assert_receive {:EXIT, ^pid, {{:nocatch, {:abnormal, _}}, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: #Function.*{:nocatch, {:abnormal,"sm
+  end
+
+  test "init -> connect -> :erlang.error({:abnormal, _})" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    connect = fn(n) ->
+      send(parent, {:connect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      :erlang.error({:abnormal, terminate})
+    end
+    fun = fn() ->
+      {:connect, connect, 1}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, 1}
+      assert_receive {:EXIT, ^pid, {{:abnormal, _}, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: 1.*{:abnormal,"sm
+
+    connect = fn() ->
+      send(parent, {:connect, 1})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      :erlang.error({:abnormal, terminate})
+    end
+    fun = fn() ->
+      {:backoff, 0, connect}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:connect, 1}
+      assert_receive {:terminate, ^connect}
+      assert_receive {:EXIT, ^pid, {{:abnormal, _}, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: #Function.*{:abnormal,"sm
   end
 
   test "handle call {:reply, reply, state}" do

@@ -608,14 +608,14 @@ defmodule Connection do
       apply(mod, :connect, [info, mod_state])
     catch
       :exit, reason ->
-        report_reason = {reason, System.stacktrace()}
+        report_reason = {:EXIT, {reason, System.stacktrace()}}
         enter_terminate(mod, mod_state, name, reason, report_reason)
       :error, reason ->
         reason = {reason, System.stacktrace()}
-        enter_terminate(mod, mod_state, name, reason, reason)
+        enter_terminate(mod, mod_state, name, reason, {:EXIT, reason})
       :throw, value ->
         reason = {{:nocatch, value}, System.stacktrace()}
-        enter_terminate(mod, mod_state, name, reason, reason)
+        enter_terminate(mod, mod_state, name, reason, {:EXIT, reason})
     else
       {:ok, mod_state} ->
         enter_loop(mod, nil, mod_state, name, opts, :infinity)
@@ -628,10 +628,10 @@ defmodule Connection do
         backoff = start_backoff(backoff_timeout)
         enter_loop(mod, backoff, mod_state, name, opts, timeout)
       {:stop, reason, mod_state} ->
-        enter_terminate(mod, mod_state, name, reason, reason)
+        enter_terminate(mod, mod_state, name, reason, {:stop, reason})
       other ->
         reason = {:bad_return_value, other}
-        enter_terminate(mod, mod_state, name, reason, reason)
+        enter_terminate(mod, mod_state, name, reason, {:stop, reason})
     end
   end
 
@@ -640,20 +640,27 @@ defmodule Connection do
       apply(mod, :terminate, [reason, mod_state])
     catch
       :exit, reason ->
-        enter_stop(mod, mod_state, name, reason, {reason, System.stacktrace()})
+        report_reason = {:EXIT, {reason, System.stacktrace()}}
+        enter_stop(mod, mod_state, name, reason, report_reason)
       :error, reason ->
         reason = {reason, System.stacktrace()}
-        enter_stop(mod, mod_state, name, reason, reason)
+        enter_stop(mod, mod_state, name, reason, {:EXIT, reason})
       :throw, value ->
         reason = {{:nocatch, value}, System.stacktrace()}
-        enter_stop(mod, mod_state, name, reason, reason)
+        enter_stop(mod, mod_state, name, reason, {:EXIT, reason})
     else
       _ ->
         enter_stop(mod, mod_state, name, reason, report_reason)
     end
   end
 
-  defp enter_stop(mod, mod_state, name, reason, reason2) do
+  defp enter_stop(_, _, _, :normal, {:stop, :normal}), do: exit(:normal)
+  defp enter_stop(_, _, _, :shutdown, {:stop, :shutdown}), do: exit(:shutdown)
+  defp enter_stop(_, _, _, {:shutdown, reason} = shutdown,
+  {:stop, {:shutdown, reason}}) do
+      exit(shutdown)
+  end
+  defp enter_stop(mod, mod_state, name, reason, {_, reason2}) do
     s = %{mod: mod, backoff: nil, mod_state: mod_state}
     mod_state = format_status(:terminate, [Process.get(), s])
     format = '** Generic server ~p terminating \n' ++

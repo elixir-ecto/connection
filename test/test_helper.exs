@@ -19,4 +19,7 @@ defmodule EvalConn do
   def disconnect(fun, state), do: fun.(state)
 
   def terminate({:shutdown, fun}, state), do: fun.(state)
+  def terminate({:abnormal, fun}, state), do: fun.(state)
+  def terminate({{:nocatch, {:abnormal, fun}}, _}, state), do: fun.(state)
+  def terminate({{:abnormal, fun}, _}, state), do: fun.(state)
 end
