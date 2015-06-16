@@ -280,7 +280,7 @@ defmodule ConnectionTest do
       assert_receive {:terminate, 1}
       assert_receive {:EXIT, ^pid, {:shutdown, _}}
       Logger.flush()
-    end) =~ ~r"error.*GenServer.*State: 1.*shutdown: "sm
+    end) =~ ~r"error.*GenServer.*State: 1.*(\(stop\) shutdown: |\(ErlangError\) erlang error: {:shutdown, #Function)"sm
 
     connect = fn() ->
       send(parent, {:connect, 1})
@@ -298,7 +298,7 @@ defmodule ConnectionTest do
       assert_receive {:terminate, ^connect}
       assert_receive {:EXIT, ^pid, {:shutdown, _}}
       Logger.flush()
-    end) =~ ~r"error.*GenServer.*State: #Function.*shutdown: "sm
+    end) =~ ~r"error.*GenServer.*State: #Function.*(\(stop\) shutdown: |\(ErlangError\) erlang error: {:shutdown, #Function)"sm
   end
 
   test "connect {:stop, {:abnormal, _}, state}" do

@@ -1,7 +1,7 @@
 defmodule Connection.Mixfile do
   use Mix.Project
 
-  @version "1.0.0-rc.1"
+  @version "1.0.0-dev"
 
   def project do
     [app: :connection,
