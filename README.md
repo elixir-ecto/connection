@@ -29,6 +29,11 @@ GenServer API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
     {:disconnect | :connect, any, any, any} |
     {:stop, any, any} | {:stop, any, any, any}
 
+  defcallback handle_cast(any, any) ::
+    {:noreply, any} | {:noreply, any, timeout | :hibernate} |
+    {:disconnect | :connect, any, any} |
+    {:stop, any, any}
+
   defcallback handle_info(any, any) ::
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
     {:disconnect | :connect, any, any} |
