@@ -1,6 +1,6 @@
 defmodule Connection do
   @moduledoc """
-  A behaviour module for implementing connecton processes.
+  A behaviour module for implementing connection processes.
 
   The `Connection` behaviour is a superset of the `GenServer` behaviour. The
   additional return values and callbacks are designed to aid building a
