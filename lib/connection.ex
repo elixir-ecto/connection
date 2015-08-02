@@ -303,9 +303,10 @@ defmodule Connection do
       @doc false
       def handle_call(msg, _from, state) do
         # We do this to trick dialyzer to not complain about non-local returns.
-        case :random.uniform(1) do
-          1 -> exit({:bad_call, msg})
-          2 -> {:noreply, state}
+        reason = {:bad_call, msg}
+        case :erlang.phash2(1, 1) do
+          0 -> exit(reason)
+          1 -> {:stop, reason, state}
         end
       end
 
@@ -317,9 +318,10 @@ defmodule Connection do
       @doc false
       def handle_cast(msg, state) do
         # We do this to trick dialyzer to not complain about non-local returns.
-        case :random.uniform(1) do
-          1 -> exit({:bad_cast, msg})
-          2 -> {:noreply, state}
+        reason = {:bad_cast, msg}
+        case :erlang.phash2(1, 1) do
+          0 -> exit(reason)
+          1 -> {:stop, reason, state}
         end
       end
 
@@ -335,12 +337,20 @@ defmodule Connection do
 
       @doc false
       def connect(info, _state) do
-        exit({:bad_connect, info})
+        reason = {:bad_connect, info}
+        case :erlang.phash2(1, 1) do
+          0 -> exit(reason)
+          1 -> {:stop, reason, state}
+        end
       end
 
       @doc false
       def disconnect(info, _state) do
-        exit({:bad_disconnect, info})
+        reason = {:bad_disconnect, info}
+        case :erlang.phash2(1, 1) do
+          0 -> exit(reason)
+          1 -> {:stop, reason, state}
+        end
       end
 
       defoverridable [init: 1, handle_call: 3, handle_info: 2,
