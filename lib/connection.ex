@@ -404,6 +404,8 @@ defmodule Connection do
   """
   defdelegate reply(from, response), to: :gen_server
 
+  defstruct [:mod, :backoff, :raise, :mod_state]
+
   ## :gen callback
 
   @doc false
@@ -456,12 +458,14 @@ defmodule Connection do
   end
   def enter_loop(mod, backoff, mod_state, name, opts, timeout)
   when name === self() do
-    s = %{mod: mod, backoff: backoff, mod_state: mod_state}
-    :gen_server.enter_loop(__MODULE__, opts,  s, timeout)
+    s = %Connection{mod: mod, backoff: backoff, mod_state: mod_state,
+                    raise: false}
+    :gen_server.enter_loop(__MODULE__, opts, s, timeout)
   end
   def enter_loop(mod, backoff, mod_state, name, opts, timeout) do
-    s = %{mod: mod, backoff: backoff, mod_state: mod_state}
-    :gen_server.enter_loop(__MODULE__, opts,  s, name, timeout)
+    s = %Connection{mod: mod, backoff: backoff, mod_state: mod_state,
+                    raise: false}
+    :gen_server.enter_loop(__MODULE__, opts, s, name, timeout)
   end
 
   @doc false
@@ -554,24 +558,22 @@ defmodule Connection do
         mod_state
     end
   end
-  def format_status(:terminate, [pdict, {_, s, _, _}]) do
-    format_status(:terminate, [pdict, s])
-  end
 
   @doc false
-  def terminate(reason, %{mod: mod, mod_state: mod_state}) do
+  def terminate(reason, %{mod: mod, mod_state: mod_state, raise: false}) do
     apply(mod, :terminate, [reason, mod_state])
   end
-  def terminate(exit_reason,
-  {kind, %{mod: mod, mod_state: mod_state}, reason, stack}) do
+  def terminate({class, reason, stack}, %{raise: true} = s) do
+    %{mod: mod, mod_state: mod_state} = s
+    stop_reason = stop_reason(class, reason, stack)
     try do
-      apply(mod, :terminate, [exit_reason, mod_state])
+      apply(mod, :terminate, [stop_reason, mod_state])
     catch
       :throw, value ->
         :erlang.raise(:error, {:nocatch, value}, System.stacktrace())
     else
       _ ->
-        :erlang.raise(kind, reason, stack)
+        :erlang.raise(class, reason, stack)
     end
   end
 
@@ -753,8 +755,7 @@ defmodule Connection do
       apply(mod, :disconnect, [info, mod_state])
     catch
       class, reason ->
-        stack = System.stacktrace()
-        callback_stop(class, reason, stack, %{s | mod_state: mod_state})
+        {:stop, {class, reason, System.stacktrace()}, %{s | mod_state: mod_state}}
     else
       {:connect, info, mod_state} ->
         connect(info, mod_state, s)
@@ -775,23 +776,21 @@ defmodule Connection do
     end
   end
 
-    # In order to have new mod_state in terminate/2 must return the exit reason.
-    # However to get the correct GenServer report (exit with stacktrace),
-    # include stacktrace in state and re-raise after calling mod.terminate/2 if
-    # it does not raise. The raise state is formatted in format_status/2 to look
-    # like the normal state.
-  defp callback_stop(:error, reason, stack, s) do
-    stop_reason = {reason, stack}
-    {:stop, stop_reason, {:error, s, reason, stack}}
-  end
-  defp callback_stop(:exit, reason, stack, s) do
-    {:stop, reason, {:exit, s, reason, stack}}
-  end
+  # In order to have new mod_state in terminate/2 must return the exit reason.
+  # However to get the correct GenServer report (exit with stacktrace),
+  # include stacktrace in reason and re-raise after calling mod.terminate/2 if
+  # it does not raise. OTP =< 17.3 the state will be the connection struct in
+  # logs if raising in terminate/2, fixed in 17.4.
+
   defp callback_stop(:throw, value, stack, s) do
-    reason = {:nocatch, value}
-    stop_reason = {reason, stack}
-    {:stop, stop_reason, {:error, s, reason, stack}}
+    callback_stop(:error, {:nocatch, value}, stack, s)
   end
+  defp callback_stop(class, reason, stack, s) do
+    {:stop, {class, reason, stack}, %{s | raise: true}}
+  end
+
+  defp stop_reason(:error, reason, stack), do: {reason, stack}
+  defp stop_reason(:exit, reason, _),      do: reason
 
   defp handle_async(fun, msg, %{mod: mod, mod_state: mod_state} = s) do
     try do
