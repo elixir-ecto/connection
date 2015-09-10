@@ -1,3 +1,4 @@
+{:ok, _} = Application.ensure_all_started(:logger)
 ExUnit.start()
 
 defmodule EvalConn do

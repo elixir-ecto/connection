@@ -16,7 +16,7 @@ defmodule Connection.Mixfile do
   end
 
   def application do
-    [applications: [:logger]]
+    [applications: []]
   end
 
   defp deps do
