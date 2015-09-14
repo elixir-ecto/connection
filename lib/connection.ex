@@ -336,7 +336,7 @@ defmodule Connection do
       end
 
       @doc false
-      def connect(info, _state) do
+      def connect(info, state) do
         reason = {:bad_connect, info}
         case :erlang.phash2(1, 1) do
           0 -> exit(reason)
@@ -345,7 +345,7 @@ defmodule Connection do
       end
 
       @doc false
-      def disconnect(info, _state) do
+      def disconnect(info, state) do
         reason = {:bad_disconnect, info}
         case :erlang.phash2(1, 1) do
           0 -> exit(reason)
