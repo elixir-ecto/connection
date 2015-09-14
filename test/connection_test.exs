@@ -3,6 +3,15 @@ defmodule ConnectionTest do
 
   import ExUnit.CaptureIO
 
+  test "__using__" do
+    defmodule Sample do
+      use Connection
+    end
+  after
+    :code.purge(Sample)
+    :code.delete(Sample)
+  end
+
   test "init {:ok, state}" do
     fun = fn() -> {:ok, 1} end
     assert {:ok, pid} = Connection.start_link(EvalConn, fun)
