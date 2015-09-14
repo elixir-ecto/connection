@@ -8,17 +8,17 @@ defmodule ConnectionTest do
       use Connection
     end
 
-  assert Sample.init(:my_state) == {:ok, :my_state}
-  assert catch_exit(Sample.connect(:my_info, nil)) == {:bad_connect, :my_info}
-  assert catch_exit(Sample.disconnect(:my_info, nil)) ==
-    {:bad_disconnect, :my_info}
-  assert catch_exit(Sample.handle_call(:my_call, {self(), make_ref()}, nil)) ==
-    {:bad_call, :my_call}
-  assert catch_exit(Sample.handle_cast(:my_cast, nil)) ==
-    {:bad_cast, :my_cast}
-  assert Sample.handle_info(:my_msg, nil) == {:noreply, nil}
-  assert Sample.terminate(:my_reason, nil)
-  assert Sample.code_change(:vsn, :my_state, :extra) == {:ok, :my_state}
+    assert Sample.init(:my_state) == {:ok, :my_state}
+    assert catch_exit(Sample.connect(:my_info, nil)) == {:bad_connect, :my_info}
+    assert catch_exit(Sample.disconnect(:my_info, nil)) ==
+      {:bad_disconnect, :my_info}
+    assert catch_exit(Sample.handle_call(:my_call, {self(), make_ref()}, nil)) ==
+      {:bad_call, :my_call}
+    assert catch_exit(Sample.handle_cast(:my_cast, nil)) ==
+      {:bad_cast, :my_cast}
+    assert Sample.handle_info(:my_msg, nil) == {:noreply, nil}
+    assert Sample.terminate(:my_reason, nil)
+    assert Sample.code_change(:vsn, :my_state, :extra) == {:ok, :my_state}
 
   after
     :code.purge(Sample)
