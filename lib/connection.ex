@@ -251,7 +251,7 @@ defmodule Connection do
   there are two additional return values:
 
   Returning `{:connect, info, state}` will immediately call
-  `connect(info, state)`. Similarly for `{:disconnect, info, reply, state}`,
+  `connect(info, state)`. Similarly for `{:disconnect, info, state}`,
   except `disconnect/2` is called.
   """
   defcallback handle_cast(any, any) ::
@@ -266,7 +266,7 @@ defmodule Connection do
   return values:
 
   Returning `{:connect, info, state}` will immediately call
-  `connect(info, state)`. Similarly for `{:disconnect, info, reply, state}`,
+  `connect(info, state)`. Similarly for `{:disconnect, info, state}`,
   except `disconnect/2` is called.
   """
   defcallback handle_info(any, any) ::
