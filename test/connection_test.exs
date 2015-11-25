@@ -443,6 +443,126 @@ defmodule ConnectionTest do
     end) =~ ~r"error.*GenServer.*State: #Function.*{:nocatch, {:abnormal,"sm
   end
 
+  test "disconnect {:noconnect, state}" do
+    parent = self()
+      disconnect = fn(n) ->
+        send(parent, {:disconnect, n})
+        {:noconnect, n+1}
+      end
+    fun = fn() ->
+      timeout = fn() ->
+        send(parent, {:timeout, 1})
+        {:disconnect, disconnect, 2}
+      end
+      {:ok, timeout, 0}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:timeout, 1}
+    assert_receive {:disconnect, 2}
+    assert Connection.call(pid, :state) === 3
+  end
+
+  test "disconnect {:noconnect, state, timeout}" do
+    parent = self()
+    disconnect = fn(n) ->
+      timeout2 = fn() ->
+        send(parent, {:timeout, n+1})
+        {:noreply, n+2}
+      end
+      send(parent, {:disconnect, n})
+      {:noconnect, timeout2, 0}
+    end
+    fun = fn() ->
+      timeout = fn() ->
+        send(parent, {:timeout, 1})
+        {:disconnect, disconnect, 2}
+      end
+      {:ok, timeout, 0}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:timeout, 1}
+    assert_receive {:disconnect, 2}
+    assert_receive {:timeout, 3}
+    assert Connection.call(pid, :state) === 4
+  end
+
+  test "disconnect {:noconnect, state, :hibernate}" do
+    parent = self()
+    disconnect = fn(n) ->
+      send(parent, {:disconnect, n})
+      {:noconnect, n+1, :hibernate}
+    end
+    fun = fn() ->
+      timeout = fn() ->
+        send(parent, {:timeout, 1})
+        {:disconnect, disconnect, 2}
+      end
+      {:ok, timeout, 0}
+    end
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:timeout, 1}
+    assert_receive {:disconnect, 2}
+    :timer.sleep(100)
+    assert Process.info(pid, :current_function) ===
+      {:current_function, {:erlang, :hibernate, 3}}
+    assert Connection.call(pid, :state) === 3
+  end
+
+  test "disconnect {:stop, {:shutdown, _}, state}" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    disconnect = fn(n) ->
+      send(parent, {:disconnect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      {:stop, {:shutdown, terminate}, n+1}
+    end
+    fun = fn() ->
+      timeout = fn() ->
+        send(parent, {:timeout, 1})
+        {:disconnect, disconnect, 2}
+      end
+      {:ok, timeout, 0}
+    end
+
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:timeout, 1}
+      assert_receive {:disconnect, 2}
+      assert_receive {:terminate, 3}
+      assert_receive {:EXIT, ^pid, {:shutdown, _}}
+      Logger.flush()
+    end) == ""
+  end
+
+  test "disconnect -> exit({:abnormal, _})" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
+    disconnect = fn(n) ->
+      send(parent, {:disconnect, n})
+      terminate = fn(m) ->
+        send(parent, {:terminate, m})
+      end
+      exit({:abnormal, terminate})
+    end
+    fun = fn() ->
+      timeout = fn() ->
+        send(parent, {:timeout, 1})
+        {:disconnect, disconnect, 2}
+      end
+      {:ok, timeout, 0}
+    end
+    assert capture_io(:user, fn() ->
+      {:ok, pid} = Connection.start_link(EvalConn, fun)
+      assert_receive {:timeout, 1}
+      assert_receive {:disconnect, 2}
+      assert_receive {:terminate, 2}
+      assert_receive {:EXIT, ^pid, {:abnormal, _}}
+      Logger.flush()
+    end) =~ ~r"error.*GenServer.*State: 2.*{:abnormal,"sm
+  end
+
   test "init -> connect -> :erlang.error({:abnormal, _})" do
     _ = Process.flag(:trap_exit, true)
     parent = self()

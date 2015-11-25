@@ -765,7 +765,8 @@ defmodule Connection do
       apply(mod, :disconnect, [info, mod_state])
     catch
       class, reason ->
-        {:stop, {class, reason, System.stacktrace()}, %{s | mod_state: mod_state}}
+        stack = System.stacktrace()
+        callback_stop(class, reason, stack, %{s | mod_state: mod_state})
     else
       {:connect, info, mod_state} ->
         connect(info, mod_state, s)
