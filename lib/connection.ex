@@ -469,12 +469,12 @@ defmodule Connection do
   def enter_loop(mod, backoff, mod_state, name, opts, timeout)
   when name === self() do
     s = %Connection{mod: mod, backoff: backoff, mod_state: mod_state,
-                    raise: false}
+                    raise: nil}
     :gen_server.enter_loop(__MODULE__, opts, s, timeout)
   end
   def enter_loop(mod, backoff, mod_state, name, opts, timeout) do
     s = %Connection{mod: mod, backoff: backoff, mod_state: mod_state,
-                    raise: false}
+                    raise: nil}
     :gen_server.enter_loop(__MODULE__, opts, s, name, timeout)
   end
 
@@ -570,18 +570,21 @@ defmodule Connection do
   end
 
   @doc false
-  def terminate(reason, %{mod: mod, mod_state: mod_state, raise: false}) do
+  def terminate(reason, %{mod: mod, mod_state: mod_state, raise: nil}) do
     apply(mod, :terminate, [reason, mod_state])
   end
-  def terminate({class, reason, stack}, %{raise: true} = s) do
+  def terminate(stop, %{raise: {class, reason, stack}} = s) do
     %{mod: mod, mod_state: mod_state} = s
-    stop_reason = stop_reason(class, reason, stack)
     try do
-      apply(mod, :terminate, [stop_reason, mod_state])
+      apply(mod, :terminate, [stop, mod_state])
     catch
       :throw, value ->
         :erlang.raise(:error, {:nocatch, value}, System.stacktrace())
     else
+      _ when stop in [:normal, :shutdown] ->
+        :ok
+      _ when tuple_size(stop) == 2 and elem(stop, 0) == :shutdown ->
+        :ok
       _ ->
         :erlang.raise(class, reason, stack)
     end
@@ -797,7 +800,8 @@ defmodule Connection do
     callback_stop(:error, {:nocatch, value}, stack, s)
   end
   defp callback_stop(class, reason, stack, s) do
-    {:stop, {class, reason, stack}, %{s | raise: true}}
+    raise = {class, reason, stack}
+    {:stop, stop_reason(class, reason, stack), %{s | raise: raise}}
   end
 
   defp stop_reason(:error, reason, stack), do: {reason, stack}

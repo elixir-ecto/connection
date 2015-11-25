@@ -320,7 +320,7 @@ defmodule ConnectionTest do
       assert_receive {:terminate, ^connect}
       assert_receive {:EXIT, ^pid, {:shutdown, _}}
       Logger.flush()
-    end) =~ ~r"error.*GenServer.*State: #Function.*(\((stop|exit)\) shutdown: |\(ErlangError\) erlang error: {:shutdown, #Function)"sm
+    end) == ""
   end
 
   test "connect {:stop, {:abnormal, _}, state}" do
