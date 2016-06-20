@@ -9,10 +9,10 @@ defmodule Connection.Mixfile do
      elixir: "~> 1.0",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     description: description,
-     package: package,
-     docs: docs,
-     deps: deps]
+     description: description(),
+     package: package(),
+     docs: docs(),
+     deps: deps()]
   end
 
   def application do
