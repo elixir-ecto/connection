@@ -9,4 +9,5 @@ elixir:
 otp_release:
       - 17.3
       - 17.4
+install: MIX_ENV=test mix deps.get --only test
 sudo: false

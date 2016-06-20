@@ -12,16 +12,19 @@ defmodule Connection.Mixfile do
      description: description(),
      package: package(),
      docs: docs(),
-     deps: deps()]
+     deps: deps(Mix.env)]
   end
 
   def application do
     [applications: []]
   end
 
-  defp deps do
+  defp deps(:dev) do
     [{:earmark, "~> 0.1", only: :dev},
      {:ex_doc, "~> 0.7", only: :dev}]
+  end
+  defp deps(_) do
+    []
   end
 
   defp docs do
