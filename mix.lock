@@ -1,2 +1,2 @@
-%{"earmark": {:hex, :earmark, "0.1.17"},
-  "ex_doc": {:hex, :ex_doc, "0.7.3"}}
+%{"earmark": {:hex, :earmark, "0.1.17", "a2269e72ff85501bdb58c2de9edc0a9a17a4be2757883eed1f601b30494ed2bf", [:mix], []},
+  "ex_doc": {:hex, :ex_doc, "0.7.3", "8f52bfbfcbc0206dd08dd94aae86a3fd5330ba2f37c73cfea2918ed4c96d1769", [:mix], [{:earmark, "~> 0.1.17 or ~> 0.2", [hex: :earmark, optional: true]}]}}
