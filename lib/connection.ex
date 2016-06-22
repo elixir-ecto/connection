@@ -90,7 +90,6 @@ defmodule Connection do
   `{:error, :closed}` when it is disconnected.
   """
 
-  use Behaviour
   @behaviour :gen_server
 
   @doc """
@@ -145,7 +144,7 @@ defmodule Connection do
   `{:error, reason}` and the process to exit with reason `reason` without
   entering the loop or calling `terminate/2`.
   """
-  defcallback init(any) ::
+  @callback init(any) ::
     {:ok, any} | {:ok, any, timeout | :hibernate} |
     {:connect, any, any} |
     {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
@@ -187,7 +186,7 @@ defmodule Connection do
   Returning `{:stop, reason, state}` will terminate the loop and call
   `terminate(reason, state)` before the process exits with reason `reason`.
   """
-  defcallback connect(any, any) ::
+  @callback connect(any, any) ::
     {:ok, any} | {:ok, any, timeout | :hibernate} |
     {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
     {:stop, any, any}
@@ -214,7 +213,7 @@ defmodule Connection do
   Returning `{:stop, reason, state}` will terminate the loop and call
   `terminate(reason, state)` before the process exits with reason `reason`.
   """
-  defcallback disconnect(any, any) ::
+  @callback disconnect(any, any) ::
     {:connect, any, any} |
     {:backoff, timeout, any} | {:backoff, timeout, any, timeout | :hibernate} |
     {:noconnect, any} | {:noconnect, any, timeout | :hibernate} |
@@ -237,7 +236,7 @@ defmodule Connection do
   can be included in the `info` or `state` terms and a reply sent in the next
   or a later callback using `reply/2`.
   """
-  defcallback handle_call(any, {pid, any}, any) ::
+  @callback handle_call(any, {pid, any}, any) ::
     {:reply, any, any} | {:reply, any, any, timeout | :hibernate} |
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
     {:disconnect | :connect, any, any, any} |
@@ -254,7 +253,7 @@ defmodule Connection do
   `connect(info, state)`. Similarly for `{:disconnect, info, state}`,
   except `disconnect/2` is called.
   """
-  defcallback handle_cast(any, any) ::
+  @callback handle_cast(any, any) ::
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
     {:disconnect | :connect, any, any} |
     {:stop, any, any}
@@ -269,7 +268,7 @@ defmodule Connection do
   `connect(info, state)`. Similarly for `{:disconnect, info, state}`,
   except `disconnect/2` is called.
   """
-  defcallback handle_info(any, any) ::
+  @callback handle_info(any, any) ::
     {:noreply, any} | {:noreply, any, timeout | :hibernate} |
     {:disconnect | :connect, any, any} |
     {:stop, any, any}
@@ -278,14 +277,14 @@ defmodule Connection do
   This callback is the same as the `GenServer` equivalent and is used to change
   the state when loading a different version of the callback module.
   """
-  defcallback code_change(any, any, any) :: {:ok, any}
+  @callback code_change(any, any, any) :: {:ok, any}
 
   @doc """
   This callback is the same as the `GenServer` equivalent and is called when the
   process terminates. The first argument is the reason the process is about
   to exit with.
   """
-  defcallback terminate(any, any) :: any
+  @callback terminate(any, any) :: any
 
   defmacro __using__(_) do
     quote location: :keep do
