@@ -19,6 +19,13 @@ defmodule EvalConn do
 
   def disconnect(fun, state), do: fun.(state)
 
+  def format_status(_, [pdict, state]) do
+    case Keyword.get(pdict, :format_status) do
+      nil -> state
+      fun -> fun.(state)
+    end
+  end
+
   def terminate({:shutdown, fun}, state), do: fun.(state)
   def terminate({:abnormal, fun}, state), do: fun.(state)
   def terminate({{:nocatch, {:abnormal, fun}}, _}, state), do: fun.(state)

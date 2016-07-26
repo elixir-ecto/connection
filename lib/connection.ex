@@ -792,8 +792,7 @@ defmodule Connection do
   # In order to have new mod_state in terminate/2 must return the exit reason.
   # However to get the correct GenServer report (exit with stacktrace),
   # include stacktrace in reason and re-raise after calling mod.terminate/2 if
-  # it does not raise. OTP =< 17.3 the state will be the connection struct in
-  # logs if raising in terminate/2, fixed in 17.4.
+  # it does not raise.
 
   defp callback_stop(:throw, value, stack, s) do
     callback_stop(:error, {:nocatch, value}, stack, s)

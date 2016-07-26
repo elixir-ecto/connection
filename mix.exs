@@ -6,24 +6,21 @@ defmodule Connection.Mixfile do
   def project do
     [app: :connection,
      version: @version,
-     elixir: "~> 1.0",
+     elixir: "~> 1.2",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      description: description(),
      package: package(),
      docs: docs(),
-     deps: deps(Mix.env)]
+     deps: deps()]
   end
 
   def application do
     [applications: []]
   end
 
-  defp deps(:dev) do
+  defp deps() do
     [{:ex_doc, "~> 0.13", only: :dev}]
-  end
-  defp deps(_) do
-    []
   end
 
   defp docs do
