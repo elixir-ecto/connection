@@ -20,8 +20,7 @@ defmodule Connection.Mixfile do
   end
 
   defp deps(:dev) do
-    [{:earmark, "~> 0.1", only: :dev},
-     {:ex_doc, "~> 0.7", only: :dev}]
+    [{:ex_doc, "~> 0.13", only: :dev}]
   end
   defp deps(_) do
     []
