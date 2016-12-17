@@ -176,7 +176,7 @@ defmodule Connection do
   up to a maximum if successive attempts fail to prevent unnecessary work. If
   several connection processes are connecting to the same peer it may also be
   beneficial to add some jitter (randomness) to the delays. This spreads out the
-  connection attempts and helps prevent many attempts occuring at the same time.
+  connection attempts and helps prevent many attempts occurring at the same time.
 
   Returning `{:backoff, timeout, state, timeout2 | :hibernate}` is similar to
   `{:backoff, timeout, state}` except `handle_info(:timeout, state)` is called
