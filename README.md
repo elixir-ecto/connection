@@ -46,6 +46,7 @@ GenServer API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
 There is an example of a simple TCP connection process in
 `examples/tcp_connection/`.
 
+Only Elixir 1.7+ is supported.
 
 ## License
 
