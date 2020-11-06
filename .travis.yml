@@ -1,15 +1,26 @@
 language: elixir
 elixir:
-      - 1.2.6
-      - 1.3.0
-      - 1.3.2
+    - 1.2.6
+    - 1.3.0
+    - 1.3.2
+    - 1.6.6
+    - 1.7.4
+    - 1.8.2
+    - 1.9.4
+    - 1.10.3
+    - 1.11.2
 otp_release:
-      - 19.0
-      - 18.0
+    - 19.0
+    - 18.0
+    - 20.3
+    - 21.3
+    - 22.3
 matrix:
     include:
         - elixir: 1.2.0
           otp_release: 18.0
         - elixir: 1.2.3
           otp_release: 18.0
+        - elixir: 1.11.2
+          otp_release: 22.3
 sudo: false
