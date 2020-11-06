@@ -297,6 +297,18 @@ defmodule Connection do
   """
   @callback terminate(any, any) :: any
 
+  defmacrop compatible_stacktrace do
+    if Version.match?(Version.parse!(System.version()), "~> 1.7") do
+      quote do
+        __STACKTRACE__
+      end
+    else
+      quote do
+        compatible_stacktrace()
+      end
+    end
+  end
+
   defmacro __using__(_) do
     quote location: :keep do
       @behaviour Connection
@@ -448,10 +460,10 @@ defmodule Connection do
         init_stop(starter, name, reason)
 
       :error, reason ->
-        init_stop(starter, name, {reason, System.stacktrace()})
+        init_stop(starter, name, {reason, compatible_stacktrace()})
 
       :throw, value ->
-        reason = {{:nocatch, value}, System.stacktrace()}
+        reason = {{:nocatch, value}, compatible_stacktrace()}
         init_stop(starter, name, reason)
     else
       {:ok, mod_state} ->
@@ -519,7 +531,7 @@ defmodule Connection do
       apply(mod, :handle_call, [request, from, mod_state])
     catch
       :throw, value ->
-        :erlang.raise(:error, {:nocatch, value}, System.stacktrace())
+        :erlang.raise(:error, {:nocatch, value}, compatible_stacktrace())
     else
       {:noreply, mod_state} = noreply ->
         put_elem(noreply, 1, %{s | mod_state: mod_state})
@@ -581,7 +593,7 @@ defmodule Connection do
       apply(mod, :code_change, [old_vsn, mod_state, extra])
     catch
       :throw, value ->
-        exit({{:nocatch, value}, System.stacktrace()})
+        exit({{:nocatch, value}, compatible_stacktrace()})
     else
       {:ok, mod_state} ->
         {:ok, %{s | mod_state: mod_state}}
@@ -625,7 +637,7 @@ defmodule Connection do
       apply(mod, :terminate, [stop, mod_state])
     catch
       :throw, value ->
-        :erlang.raise(:error, {:nocatch, value}, System.stacktrace())
+        :erlang.raise(:error, {:nocatch, value}, compatible_stacktrace())
     else
       _ when stop in [:normal, :shutdown] ->
         :ok
@@ -674,15 +686,15 @@ defmodule Connection do
       apply(mod, :connect, [info, mod_state])
     catch
       :exit, reason ->
-        report_reason = {:EXIT, {reason, System.stacktrace()}}
+        report_reason = {:EXIT, {reason, compatible_stacktrace()}}
         enter_terminate(mod, mod_state, name, reason, report_reason)
 
       :error, reason ->
-        reason = {reason, System.stacktrace()}
+        reason = {reason, compatible_stacktrace()}
         enter_terminate(mod, mod_state, name, reason, {:EXIT, reason})
 
       :throw, value ->
-        reason = {{:nocatch, value}, System.stacktrace()}
+        reason = {{:nocatch, value}, compatible_stacktrace()}
         enter_terminate(mod, mod_state, name, reason, {:EXIT, reason})
     else
       {:ok, mod_state} ->
@@ -713,15 +725,15 @@ defmodule Connection do
       apply(mod, :terminate, [reason, mod_state])
     catch
       :exit, reason ->
-        report_reason = {:EXIT, {reason, System.stacktrace()}}
+        report_reason = {:EXIT, {reason, compatible_stacktrace()}}
         enter_stop(mod, mod_state, name, reason, report_reason)
 
       :error, reason ->
-        reason = {reason, System.stacktrace()}
+        reason = {reason, compatible_stacktrace()}
         enter_stop(mod, mod_state, name, reason, {:EXIT, reason})
 
       :throw, value ->
-        reason = {{:nocatch, value}, System.stacktrace()}
+        reason = {{:nocatch, value}, compatible_stacktrace()}
         enter_stop(mod, mod_state, name, reason, {:EXIT, reason})
     else
       _ ->
@@ -814,7 +826,7 @@ defmodule Connection do
       apply(mod, :connect, [info, mod_state])
     catch
       class, reason ->
-        stack = System.stacktrace()
+        stack = compatible_stacktrace()
         callback_stop(class, reason, stack, %{s | mod_state: mod_state})
     else
       {:ok, mod_state} ->
@@ -846,7 +858,7 @@ defmodule Connection do
       apply(mod, :disconnect, [info, mod_state])
     catch
       class, reason ->
-        stack = System.stacktrace()
+        stack = compatible_stacktrace()
         callback_stop(class, reason, stack, %{s | mod_state: mod_state})
     else
       {:connect, info, mod_state} ->
@@ -896,7 +908,7 @@ defmodule Connection do
       apply(mod, fun, [msg, mod_state])
     catch
       :throw, value ->
-        :erlang.raise(:error, {:nocatch, value}, System.stacktrace())
+        :erlang.raise(:error, {:nocatch, value}, compatible_stacktrace())
     else
       {:noreply, mod_state} = noreply ->
         put_elem(noreply, 1, %{s | mod_state: mod_state})
