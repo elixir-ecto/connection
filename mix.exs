@@ -31,7 +31,7 @@ defmodule Connection.Mixfile do
 
   defp docs do
     [
-      source_url: "https://github.com/fishcakez/connection",
+      source_url: "https://github.com/elixir-ecto/connection",
       source_ref: "v#{@version}",
       main: Connection
     ]
@@ -46,7 +46,7 @@ defmodule Connection.Mixfile do
   defp package do
     %{
       licenses: ["Apache 2.0"],
-      links: %{"Github" => "https://github.com/fishcakez/connection"}
+      links: %{"Github" => "https://github.com/elixir-ecto/connection"}
     }
   end
 end
