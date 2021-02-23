@@ -1,43 +1,47 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - master
 
 jobs:
   test:
-    name: Test
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-16.04
+    env:
+      MIX_ENV: test
     strategy:
       fail-fast: false
       matrix:
-        pair:
-          - elixir: "1.7.4"
-            erlang: "19.3"
-          - elixir: "1.8.2"
-            erlang: "20.3"
-          - elixir: "1.9.4"
-            erlang: "20.3"
-          - elixir: "1.10.3"
-            erlang: "21.3"
-          - elixir: "1.10.3"
-            erlang: "22.3"
-          - elixir: "1.11.2"
-            erlang: "23.1"
-
+        include:
+          - pair:
+              elixir: 1.7.4
+              otp: 19.3.6.13
+          - pair:
+              elixir: 1.11.3
+              otp: 23.2.5
+            lint: lint
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install OTP and Elixir
-        uses: actions/setup-elixir@v1
+      - uses: erlef/setup-elixir@v1
         with:
-          otp-version: ${{matrix.pair.erlang}}
+          otp-version: ${{matrix.pair.otp}}
           elixir-version: ${{matrix.pair.elixir}}
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          mix deps.get
+          mix deps.get --only test
           mix deps.compile
 
-      - name: Run tests
-        run: |
-          mix test
+      - run: mix format --check-formatted
+        if: ${{ matrix.lint }}
+
+      - run: mix deps.get && mix deps.unlock --check-unused
+        if: ${{ matrix.lint }}
+
+      - run: mix compile --warnings-as-errors
+        if: ${{ matrix.lint }}
+
+      - run: mix test
