@@ -2,9 +2,9 @@ defmodule TCPConnectionTest do
   use ExUnit.Case
 
   test "the truth" do
-    {:ok, listener} = :gen_tcp.listen(0, [active: false, mode: :binary])
+    {:ok, listener} = :gen_tcp.listen(0, active: false, mode: :binary)
     {:ok, port} = :inet.port(listener)
-    {:ok, conn} = TCPConnection.start_link({127,0,0,1}, port, [mode: :binary])
+    conn = start_supervised!({TCPConnection, host: {127, 0, 0, 1}, port: port, mode: :binary})
     {:ok, socket} = :gen_tcp.accept(listener, 1000)
 
     assert :gen_tcp.send(socket, "hello") == :ok

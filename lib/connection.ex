@@ -367,6 +367,14 @@ defmodule Connection do
         end
       end
 
+      @doc false
+      def child_spec(init_arg) do
+        %{
+          id: __MODULE__,
+          start: {__MODULE__, :start_link, [init_arg]}
+        }
+      end
+
       defoverridable init: 1,
                      handle_call: 3,
                      handle_info: 2,
@@ -374,7 +382,8 @@ defmodule Connection do
                      terminate: 2,
                      code_change: 3,
                      connect: 2,
-                     disconnect: 2
+                     disconnect: 2,
+                     child_spec: 1
     end
   end
 
