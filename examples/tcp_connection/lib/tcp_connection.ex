@@ -16,7 +16,7 @@ defmodule TCPConnection do
   def init(opts) do
     {host, opts} = Keyword.pop!(opts, :host)
     {port, opts} = Keyword.pop!(opts, :port)
-    {timeout, opts} = Keyword.pop(opts, :host, 5000)
+    {timeout, opts} = Keyword.pop(opts, :timeout, 5000)
     s = %{host: host, port: port, opts: opts, timeout: timeout, sock: nil}
     {:connect, :init, s}
   end
