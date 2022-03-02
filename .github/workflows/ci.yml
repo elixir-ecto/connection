@@ -17,10 +17,10 @@ jobs:
       matrix:
         include:
           - pair:
-              elixir: 1.7.4
-              otp: 19.3.6.13
+              elixir: 1.7
+              otp: 19
           - pair:
-              elixir: main
+              elixir: 1.13
               otp: 24
             lint: lint
     steps:
