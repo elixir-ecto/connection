@@ -8,7 +8,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-16.04
+    name: Elixir ${{matrix.pair.elixir}} / OTP ${{matrix.pair.otp}}
+    runs-on: ubuntu-18.04
     env:
       MIX_ENV: test
     strategy:
@@ -19,8 +20,8 @@ jobs:
               elixir: 1.7.4
               otp: 19.3.6.13
           - pair:
-              elixir: 1.11.3
-              otp: 23.2.5
+              elixir: 1.13.3
+              otp: 24.2.2
             lint: lint
     steps:
       - uses: actions/checkout@v2
