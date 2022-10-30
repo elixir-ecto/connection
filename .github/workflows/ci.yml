@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Elixir ${{matrix.pair.elixir}} / OTP ${{matrix.pair.otp}}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     env:
       MIX_ENV: test
     strategy:
