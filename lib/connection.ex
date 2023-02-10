@@ -455,9 +455,7 @@ defmodule Connection do
   def callback_mode, do: :handle_event_function
 
   @impl :gen_statem
-  def init({mod, args, name}) do
-    name = name || self()
-
+  def init({mod, args}) do
     try do
       apply(mod, :init, [args])
     catch
@@ -478,7 +476,6 @@ defmodule Connection do
         {:ok, @state, data, callback_timeout_action(timeout)}
 
       {:connect, info, mod_state} ->
-        dbg(mod_state)
         data = %__MODULE__{mod: mod, mod_state: mod_state}
         {:ok, @state, data, {:next_event, :internal, {:connect, info}}}
 
@@ -693,11 +690,10 @@ defmodule Connection do
   end
 
   def terminate(stop, @state, %__MODULE__{raise: {class, reason, stack}} = s) do
-    dbg()
     %{mod: mod, mod_state: mod_state} = s
 
     try do
-      dbg(apply(mod, :terminate, [stop, mod_state]))
+      apply(mod, :terminate, [stop, mod_state])
     catch
       :throw, value ->
         :erlang.raise(:error, {:nocatch, value}, __STACKTRACE__)
@@ -724,88 +720,16 @@ defmodule Connection do
 
     args =
       case Keyword.pop(options, :name) do
-        {nil, opts} ->
-          [__MODULE__, {mod, args, nil}, opts]
-
-        {atom, opts} when is_atom(atom) ->
-          [{:local, atom}, __MODULE__, {mod, args, {:local, atom}}, opts]
-
-        {{:global, _} = name, opts} ->
-          [name, __MODULE__, {mod, args, name}, opts]
-
-        {{:via, _, _} = name, opts} ->
-          [name, __MODULE__, {mod, args, name}, opts]
+        {nil, opts} -> [__MODULE__, {mod, args}, opts]
+        {atom, opts} when is_atom(atom) -> [{:local, atom}, __MODULE__, {mod, args}, opts]
+        {{:global, _} = name, opts} -> [name, __MODULE__, {mod, args}, opts]
+        {{:via, _, _} = name, opts} -> [name, __MODULE__, {mod, args}, opts]
       end
 
     apply(:gen_statem, start_fun, args)
   end
 
   # init helpers
-
-  defp enter_terminate(mod, mod_state, name, reason, report_reason) do
-    try do
-      apply(mod, :terminate, [reason, mod_state])
-    catch
-      :exit, reason ->
-        report_reason = {:EXIT, {reason, __STACKTRACE__}}
-        enter_stop(mod, mod_state, name, reason, report_reason)
-
-      :error, reason ->
-        reason = {reason, __STACKTRACE__}
-        enter_stop(mod, mod_state, name, reason, {:EXIT, reason})
-
-      :throw, value ->
-        reason = {{:nocatch, value}, __STACKTRACE__}
-        enter_stop(mod, mod_state, name, reason, {:EXIT, reason})
-    else
-      _ ->
-        enter_stop(mod, mod_state, name, reason, report_reason)
-    end
-  end
-
-  defp enter_stop(_, _, _, :normal, {:stop, :normal}), do: exit(:normal)
-  defp enter_stop(_, _, _, :shutdown, {:stop, :shutdown}), do: exit(:shutdown)
-
-  defp enter_stop(_, _, _, {:shutdown, reason} = shutdown, {:stop, {:shutdown, reason}}) do
-    exit(shutdown)
-  end
-
-  defp enter_stop(mod, mod_state, name, reason, {_, reason2}) do
-    s = %{mod: mod, backoff: nil, mod_state: mod_state}
-    mod_state = format_status(:terminate, [Process.get(), s])
-    ## No last message
-    format =
-      ~c"** Generic server ~p terminating \n" ++
-        ~c"** Last message in was ~p~n" ++
-        ~c"** When Server state == ~p~n" ++
-        ~c"** Reason for termination == ~n** ~p~n"
-
-    args = [report_name(name), nil, mod_state, report_reason(reason2)]
-    :error_logger.format(format, args)
-    exit(reason)
-  end
-
-  defp report_name(name) when name === self(), do: name
-  defp report_name({:local, name}), do: name
-  defp report_name({:global, name}), do: name
-  defp report_name({:via, _, name}), do: name
-
-  defp report_reason({:undef, [{mod, fun, args, _} | _] = stack} = reason) do
-    cond do
-      :code.is_loaded(mod) === false ->
-        {:"module could not be loaded", stack}
-
-      not function_exported?(mod, fun, length(args)) ->
-        {:"function not exported", stack}
-
-      true ->
-        reason
-    end
-  end
-
-  defp report_reason(reason) do
-    reason
-  end
 
   ## GenServer helpers
 

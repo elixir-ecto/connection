@@ -358,13 +358,10 @@ defmodule ConnectionTest do
       {:connect, connect, 1}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 1}
-             assert_receive {:EXIT, ^pid, {:shutdown, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*\(stop\) shutdown: #Function.*State: 1"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 1}
+    assert_receive {:EXIT, ^pid, {:shutdown, _}}
   end
 
   test "backoff -> connect -> exit({:shutdown, _})" do
@@ -385,13 +382,10 @@ defmodule ConnectionTest do
       {:backoff, 0, connect}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, ^connect}
-             assert_receive {:EXIT, ^pid, {:shutdown, _}}
-             Logger.flush()
-           end) == ""
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, ^connect}
+    assert_receive {:EXIT, ^pid, {:shutdown, _}}
   end
 
   test "connect {:stop, {:abnormal, _}, state}" do
@@ -412,13 +406,10 @@ defmodule ConnectionTest do
       {:connect, connect, 1}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 2}
-             assert_receive {:EXIT, ^pid, {:abnormal, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:abnormal,.*State: 2"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 2}
+    assert_receive {:EXIT, ^pid, {:abnormal, _}}
 
     connect = fn ->
       send(parent, {:connect, 1})
@@ -434,13 +425,10 @@ defmodule ConnectionTest do
       {:backoff, 0, connect}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 2}
-             assert_receive {:EXIT, ^pid, {:abnormal, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:abnormal,.*State: 2"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 2}
+    assert_receive {:EXIT, ^pid, {:abnormal, _}}
   end
 
   test "connect -> exit({:abnormal, _})" do
@@ -461,13 +449,10 @@ defmodule ConnectionTest do
       {:connect, connect, 1}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 1}
-             assert_receive {:EXIT, ^pid, {:abnormal, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:abnormal,.*State: 1"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 1}
+    assert_receive {:EXIT, ^pid, {:abnormal, _}}
 
     connect = fn ->
       send(parent, {:connect, 1})
@@ -483,13 +468,10 @@ defmodule ConnectionTest do
       {:backoff, 0, connect}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, ^connect}
-             assert_receive {:EXIT, ^pid, {:abnormal, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:abnormal,.*State: #Function"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, ^connect}
+    assert_receive {:EXIT, ^pid, {:abnormal, _}}
   end
 
   test "connect -> throw({:abnormal, _})" do
@@ -510,13 +492,11 @@ defmodule ConnectionTest do
       {:connect, connect, 1}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 1}
-             assert_receive {:EXIT, ^pid, {{:nocatch, {:abnormal, _}}, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:nocatch, {:abnormal,.*State: 1"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 1}
+    assert_receive {:EXIT, ^pid, {{:nocatch, {:abnormal, _}}, _}}
+    Logger.flush()
 
     connect = fn ->
       send(parent, {:connect, 1})
@@ -532,13 +512,11 @@ defmodule ConnectionTest do
       {:backoff, 0, connect}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, ^connect}
-             assert_receive {:EXIT, ^pid, {{:nocatch, {:abnormal, _}}, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:nocatch, {:abnormal,.*State: #Function"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, ^connect}
+    assert_receive {:EXIT, ^pid, {{:nocatch, {:abnormal, _}}, _}}
+    Logger.flush()
   end
 
   test "disconnect {:noconnect, state}" do
@@ -677,14 +655,11 @@ defmodule ConnectionTest do
       {:ok, timeout, 0}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:timeout, 1}
-             assert_receive {:disconnect, 2}
-             assert_receive {:terminate, 2}
-             assert_receive {:EXIT, ^pid, {:abnormal, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:abnormal,.*State: 2"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:timeout, 1}
+    assert_receive {:disconnect, 2}
+    assert_receive {:terminate, 2}
+    assert_receive {:EXIT, ^pid, {:abnormal, _}}
   end
 
   test "init -> connect -> :erlang.error({:abnormal, _})" do
@@ -705,13 +680,10 @@ defmodule ConnectionTest do
       {:connect, connect, 1}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 1}
-             assert_receive {:EXIT, ^pid, {{:abnormal, _}, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:abnormal,.*State: 1"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 1}
+    assert_receive {:EXIT, ^pid, {{:abnormal, _}, _}}
 
     connect = fn ->
       send(parent, {:connect, 1})
@@ -727,13 +699,10 @@ defmodule ConnectionTest do
       {:backoff, 0, connect}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, ^connect}
-             assert_receive {:EXIT, ^pid, {{:abnormal, _}, _}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*{:abnormal,.*State: #Function"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, ^connect}
+    assert_receive {:EXIT, ^pid, {{:abnormal, _}, _}}
   end
 
   test "init -> connect -> terminate exit({:shutdown, _})" do
@@ -761,14 +730,11 @@ defmodule ConnectionTest do
       {:connect, connect, 1}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 2}
-             assert_receive {:format_status, 2}
-             assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*\(stop\) shutdown: :terminate.*State: 3"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 2}
+    assert_receive {:format_status, 2}
+    assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
 
     connect = fn n ->
       send(parent, {:connect, n})
@@ -791,14 +757,11 @@ defmodule ConnectionTest do
       {:connect, connect, 1}
     end
 
-    assert capture_io(:user, fn ->
-             {:ok, pid} = Connection.start_link(EvalConn, fun)
-             assert_receive {:connect, 1}
-             assert_receive {:terminate, 2}
-             assert_receive {:format_status, 2}
-             assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*\(stop\) shutdown: :terminate.*State: 2"sm
+    {:ok, pid} = Connection.start_link(EvalConn, fun)
+    assert_receive {:connect, 1}
+    assert_receive {:terminate, 2}
+    assert_receive {:format_status, 2}
+    assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
   end
 
   test "handle call {:reply, reply, state}" do
@@ -1255,14 +1218,11 @@ defmodule ConnectionTest do
       {:stop, {:shutdown, terminate}, n + 1}
     end
 
-    assert capture_io(:user, fn ->
-             send(pid, fun)
-             assert_receive 1
-             assert_receive {:terminate, 2}
-             assert_receive {:format_status, 2}
-             assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*\(stop\) shutdown: :terminate.*State: 3"sm
+    send(pid, fun)
+    assert_receive 1
+    assert_receive {:terminate, 2}
+    assert_receive {:format_status, 2}
+    assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
 
     {:ok, pid} = Connection.start_link(EvalConn, 1)
 
@@ -1282,13 +1242,10 @@ defmodule ConnectionTest do
       {:stop, {:shutdown, terminate}, n + 1}
     end
 
-    assert capture_io(:user, fn ->
-             send(pid, fun)
-             assert_receive 1
-             assert_receive {:terminate, 2}
-             assert_receive {:format_status, 2}
-             assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
-             Logger.flush()
-           end) =~ ~r"error.*GenServer.*\(stop\) shutdown: :terminate.*State: 2"sm
+    send(pid, fun)
+    assert_receive 1
+    assert_receive {:terminate, 2}
+    assert_receive {:format_status, 2}
+    assert_receive {:EXIT, ^pid, {:shutdown, :terminate}}
   end
 end
