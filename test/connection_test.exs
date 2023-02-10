@@ -365,6 +365,11 @@ defmodule ConnectionTest do
              assert_receive {:EXIT, ^pid, {:shutdown, _}}
              Logger.flush()
            end) =~ ~r"error.*GenServer.*\(stop\) shutdown: #Function.*State: 1"sm
+  end
+
+  test "backoff -> connect -> exit({:shutdown, _})" do
+    _ = Process.flag(:trap_exit, true)
+    parent = self()
 
     connect = fn ->
       send(parent, {:connect, 1})
