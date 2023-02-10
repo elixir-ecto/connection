@@ -447,6 +447,8 @@ defmodule Connection do
   # other features, such as timeouts, but we don't need the state.
   @state :no_state
 
+  @cancel_backoff_action {{:timeout, :backoff}, :infinity, :no_content}
+
   defstruct [:mod, :backoff, :raise, :mod_state]
 
   ## :gen_statem callbacks
@@ -577,10 +579,10 @@ defmodule Connection do
         callback_stop(class, reason, stack, %{s | mod_state: mod_state})
     else
       {:ok, mod_state} ->
-        {:keep_state, %{s | mod_state: mod_state}, {{:timeout, :backoff}, :cancel}}
+        {:keep_state, %{s | mod_state: mod_state}, @cancel_backoff_action}
 
       {:ok, mod_state, timeout} ->
-        actions = [{{:timeout, :backoff}, :cancel}, callback_timeout_action(timeout)]
+        actions = [@cancel_backoff_action, callback_timeout_action(timeout)]
         {:keep_state, %{s | mod_state: mod_state}, actions}
 
       {:backoff, backoff_timeout, mod_state} ->
@@ -616,10 +618,10 @@ defmodule Connection do
         {:keep_state, %{s | mod_state: mod_state}, {:next_event, :internal, {:connect, info}}}
 
       {:noconnect, mod_state} ->
-        {:keep_state, %{s | mod_state: mod_state}, {{:timeout, :backoff}, :cancel}}
+        {:keep_state, %{s | mod_state: mod_state}, @cancel_backoff_action}
 
       {:noconnect, mod_state, timeout} ->
-        actions = [{{:timeout, :backoff}, :cancel}, callback_timeout_action(timeout)]
+        actions = [@cancel_backoff_action, callback_timeout_action(timeout)]
         {:keep_state, %{s | mod_state: mod_state}, actions}
 
       {:backoff, backoff_timeout, mod_state} ->
