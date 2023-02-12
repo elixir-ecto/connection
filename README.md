@@ -1,8 +1,8 @@
 # Connection
 
-*Note:* with the inclusion of `gen_statem`, this project is no longer necessary.
-See the following pull request as examples of replacing `Connection` by `gen_statem`
-in other projects:
+*Note:* with the inclusion of [`gen_statem`](https://www.erlang.org/doc/man/gen_statem.html)
+in Erlang/OTP, this project is no longer necessary. See the following pull request as examples
+of replacing `Connection` by `gen_statem` in existing projects:
 
   * https://github.com/elixir-ecto/postgrex/pull/643
   * https://github.com/elixir-ecto/postgrex/pull/644
