@@ -1,5 +1,17 @@
-Connection
-==========
+# Connection
+
+*Note:* with the inclusion of `gen_statem`, this project is no longer necessary.
+See the following pull request as examples of replacing `Connection` by `gen_statem`
+in other projects:
+
+  * https://github.com/elixir-ecto/postgrex/pull/643
+  * https://github.com/elixir-ecto/postgrex/pull/644
+  * https://github.com/elixir-ecto/db_connection/pull/275
+
+We may release new versions if necessary to keep compatibility with Erlang/OTP and
+Elixir but otherwise this package is no longer recommended for new projects.
+
+---
 
 `Connection` behaviour for connection processes. The API is superset of the
 GenServer API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
@@ -43,6 +55,7 @@ GenServer API. There are 2 additional callbacks `connect/2` and `disconnect/2`:
 
   @callback terminate(any, any) :: any
 ```
+
 There is an example of a simple TCP connection process in
 `examples/tcp_connection/`.
 
